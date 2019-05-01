@@ -6,7 +6,7 @@ Pooled MMM using RStan.
 
 ```r
 library(tidyverse)
-library(rbayes)
+library(bayesmmm)
 
 model_data <- bayesmmm::demo_dataset
 
