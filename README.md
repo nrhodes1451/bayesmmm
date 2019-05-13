@@ -1,8 +1,10 @@
 # bayesmmm
 
-Pooled MMM using RStan.
+Pooled Marketing Mix Modelling using RStan.
 
-## Example
+This project was born out of a desire to reimagine traditional frequentist MMM in a hierarchical Bayesian framework. Much of the credit here goes to Richard McElreath and his fantastic book Statistical Rethinking for introducing me to Bayesian statistics and philosophy.
+
+## Examples
 
 ```r
 library(tidyverse)
