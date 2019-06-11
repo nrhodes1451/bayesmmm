@@ -379,32 +379,34 @@ bayesmodel <- function(data, y, variables, observations=NULL,
 
   # Add transformations
   transformed_variables <- variables$variable[variables$transformation=="media"]
-  transformations <- do.call(rbind, lapply(seq(transformed_variables), function(i){
-    variable <- transformed_variables[i]
-    ads <- model_summary[model_summary$id==paste0("ads_tra[",i,"]"),]
-    ads$Variable <- paste(variable, "ads")
-    ads$scale <- 1
+  if(length(transformed_variables)>0){
+    transformations <- do.call(rbind, lapply(seq(transformed_variables), function(i){
+      variable <- transformed_variables[i]
+      ads <- model_summary[model_summary$id==paste0("ads_tra[",i,"]"),]
+      ads$Variable <- paste(variable, "ads")
+      ads$scale <- 1
 
-    denominator <- model_summary[model_summary$id==paste0("den_tra[",i,"]"),]
-    denominator$Variable <- paste(variable, "denominator")
-    # Rescale denominator
-    denominator$scale <- model_data$raw[[variable]][model_data$raw$date %in%
-                                                      observations] %>% max
-    trans <- ads %>% rbind(denominator)
-    return(trans)
-  }))
+      denominator <- model_summary[model_summary$id==paste0("den_tra[",i,"]"),]
+      denominator$Variable <- paste(variable, "denominator")
+      # Rescale denominator
+      denominator$scale <- model_data$raw[[variable]][model_data$raw$date %in%
+                                                        observations] %>% max
+      trans <- ads %>% rbind(denominator)
+      return(trans)
+    }))
 
-  stan_ids$transformations <- transformations %>%
-    select(Variable, id) %>%
-    rename("variable" = Variable)
-  results$stan_ids <- stan_ids
+    stan_ids$transformations <- transformations %>%
+      select(Variable, id) %>%
+      rename("variable" = Variable)
+    results$stan_ids <- stan_ids
 
-  transformations <- transformations %>% select(-id)
-  transformations$MAP <- transformations$mean
-  transformations <- transformations[c(11, 13, 1:10, 12)]
-  results$scaled_transformations <- transformations
-  results$transformations <- transformations
-  results$transformations[2:10] <- results$transformations[2:10] * results$transformations$scale
+    transformations <- transformations %>% select(-id)
+    transformations$MAP <- transformations$mean
+    transformations <- transformations[c(11, 13, 1:10, 12)]
+    results$scaled_transformations <- transformations
+    results$transformations <- transformations
+    results$transformations[2:10] <- results$transformations[2:10] * results$transformations$scale
+  }
 
   results$significance <- beta_summary %>%
     filter(variable != "Intercept") %>%
