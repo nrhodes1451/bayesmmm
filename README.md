@@ -39,7 +39,7 @@ model$plots$fit
   <img height="300" src="https://github.com/nrhodes1451/bayesmmm/blob/master/img/model.png">
 </p>
 
-### View coefficient distributions:
+### View coefficient posterior distributions:
 ```r
 model$plots$coeffs$Seasonality
 ```
@@ -47,7 +47,7 @@ model$plots$coeffs$Seasonality
   <img height="300" src="https://github.com/nrhodes1451/bayesmmm/blob/master/img/coeffs.png">
 </p>
 
-### Get decomp
+### Get model decomposition calculated from MAP estimates
 ```r
 model$decomp
 ```
