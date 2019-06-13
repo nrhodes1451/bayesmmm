@@ -70,15 +70,19 @@ model <- bayesmmm::bayesmodel(model_data,
 ```
 
 ### View media transformation posterior distributions:
+
 ```r
 model$plots$adstocks
 ```
+
 <p align="center">
   <img height="300" src="https://github.com/nrhodes1451/bayesmmm/blob/master/img/adstock.png">
 </p>
+
 ```r
 model$plots$denominators
 ```
+
 <p align="center">
   <img height="300" src="https://github.com/nrhodes1451/bayesmmm/blob/master/img/denominator.png">
 </p>
