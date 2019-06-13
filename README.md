@@ -49,7 +49,7 @@ model$plots$coeffs$Seasonality
 
 ### Get model decomposition calculated from MAP estimates
 ```r
-model$decomp
+model$decomp %>% write_csv("decomp.csv")
 ```
 
 ## Media transformations
