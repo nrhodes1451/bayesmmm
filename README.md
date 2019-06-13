@@ -35,17 +35,30 @@ model <- bayesmmm::bayesmodel(model_data,
 ```r
 model$plots$fit
 ```
+<p align="center">
+  <img height="200" src="https://github.com/nrhodes1451/bayesmmm/blob/master/img/model.png">
+</p>
 
-
-# View coefficient distributions:
+### View coefficient distributions:
+```r
 model$plots$coeffs$Seasonality
+```
+<p align="center">
+  <img height="200" src="https://github.com/nrhodes1451/bayesmmm/blob/master/img/coeffs.png">
+</p>
 
-# Get decomp
+### Get decomp
+```r
 model$decomp
+```
 
-# View variable coefficient convergence
+### View variable coefficient convergence
+```r
 model %>% trace_plot("Seasonality")
 ```
+<p align="center">
+  <img height="200" src="https://github.com/nrhodes1451/bayesmmm/blob/master/img/chains.png">
+</p>
 
 ## Media transformations
 
