@@ -6,24 +6,36 @@ This project was born out of a desire to reimagine traditional frequentist MMM i
 
 ## Examples
 
+
 ```r
 library(tidyverse)
 library(bayesmmm)
 
 model_data <- bayesmmm::demo_dataset
+```
 
+Use the `variable_grid()` function to create a data frame to contain the model specification
+
+```r
 y <- "Sales"
 variables <- c("Media",
                "Seasonality",
                "CCI",
                "Competitor") %>% variable_grid
+```
+Run the model
 
+```r
 model <- bayesmmm::bayesmodel(model_data,
                             y,
                             variables)
+```
 
-# View model fit
+### View model fit
+```r
 model$plots$fit
+```
+
 
 # View coefficient distributions:
 model$plots$coeffs$Seasonality
