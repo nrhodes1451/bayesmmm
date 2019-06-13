@@ -52,14 +52,6 @@ model$plots$coeffs$Seasonality
 model$decomp
 ```
 
-### View variable coefficient convergence
-```r
-model %>% trace_plot("Seasonality")
-```
-<p align="center">
-  <img height="300" src="https://github.com/nrhodes1451/bayesmmm/blob/master/img/chains.png">
-</p>
-
 ## Media transformations
 
 ```r
@@ -67,16 +59,34 @@ variables <- c("Media",
                "Seasonality",
                "CCI",
                "Competitor") %>% variable_grid
+```
+Set a variable's transformation to "media" within the `variable_grid` in order to calculate media Adstocks/diminishing returns rates
+```r
 variables$transformation[1] <- "media"
 
 model <- bayesmmm::bayesmodel(model_data,
                             y,
                             variables)
+```
 
-# View media transformation distributions:
+### View media transformation posterior distributions:
+```r
 model$plots$adstocks
+```
+<p align="center">
+  <img height="300" src="https://github.com/nrhodes1451/bayesmmm/blob/master/img/adstock.png">
+</p>
+```r
 model$plots$denominators
+```
+<p align="center">
+  <img height="300" src="https://github.com/nrhodes1451/bayesmmm/blob/master/img/denominator.png">
+</p>
 
-# View trace plots
+### View trace plots for convergence
+```r
 model %>% trace_plot("Media")
 ```
+<p align="center">
+  <img height="300" src="https://github.com/nrhodes1451/bayesmmm/blob/master/img/chains.png">
+</p>
