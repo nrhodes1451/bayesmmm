@@ -791,3 +791,92 @@ update_model <- function(model, y, data, observations, is_linear=FALSE){
     stop("function incomplete")
   }
 }
+
+#' @title Moving Average
+#' @description Create moving averages of pooled data.
+#' @param data A data frame containing a column of observations (labelled "date"), and variables.
+#' @param series A string identifying the variable to be "mav"d.
+#' @param obs The moving average observation length.
+#' @param center An optional boolean to specify centered moving average. Default FALSE.
+#' @return A transformed data frame.
+#' @examples df <- df_raw %>% mav("seasonality", 13, center = T)
+#' @export
+mav <- function(data, series, obs, center = F){
+
+  if(!"poolname" %in% names(data)){
+    message("Column 'poolname' not found in data. Assuming non-pooled data.")
+    data$poolname <- "total"
+  }
+  if(!"date" %in% names(data)){
+    stop("Column 'date' missing from data. Please supply a column of date values.")
+  }
+
+  df_mav <- data[c("poolname", "date", series)]
+  names(df_mav)[3] <- "mavcol"
+  df_mav <- df_mav %>% spread(poolname, mavcol)
+  for(i in 2:length(df_mav)){
+    arr <- df_mav[[i]]
+    df_mav[[i]] <- zoo::rollmean(arr,
+                                 obs,
+                                 fill = c(
+                                   mean(head(arr, obs)),
+                                   mean(arr),
+                                   mean(tail(arr, obs))
+                                 ),
+                                 align = if(center) "center" else "left")
+  }
+  df_mav <- df_mav %>% gather(poolname, mav, -date)
+
+  data <- data %>% left_join(df_mav)
+  data[[series]] <- data$mav
+  data <- data %>% select(-mav)
+  return(data)
+}
+
+#' @title Lag Variables
+#' @description Create lags and leads of pooled data.
+#' @param data A data frame containing a column of observations (labelled "date"), and variables.
+#' @param series A string identifying the variable to be lagged.
+#' @param obs The number of weeks to lag by. Negative numbers will result in a lead.
+#' @param rep_nearest An optional boolean to fill NA values with nearest neighbour. If FALSE, NA values will be filled with zero. Default TRUE.
+#' @return A transformed data frame.
+#' @examples df <- df_raw %>% mav("Christmas", 2, rep_nearest = F)
+#' @export
+lag <- function(data, series, obs, rep_nearest = T){
+  if(!"poolname" %in% names(data)){
+    message("Column 'poolname' not found in data. Assuming non-pooled data.")
+    data$poolname <- "total"
+  }
+  if(!"date" %in% names(data)){
+    stop("Column 'date' missing from data. Please supply a column of date values.")
+  }
+
+  df_lag <- data[c("poolname", "date", series)]
+  names(df_lag)[3] <- "lagcol"
+  df_lag <- df_lag %>% spread(poolname, lagcol)
+  for(i in 2:length(df_lag)){
+    arr <- df_lag[[i]]
+    if(obs<0){
+      if(rep_nearest){
+        df_lag[[i]] <- c(tail(arr, obs), rep(tail(arr,1), abs(obs)))
+      }
+      else{
+        df_lag[[i]] <- c(tail(arr, obs), rep(0, abs(obs)))
+      }
+    }
+    else{
+      if(rep_nearest){
+        df_lag[[i]] <- c(rep(arr[1], obs), head(arr, -obs))
+      }
+      else{
+        df_lag[[i]] <- c(rep(0, obs), head(arr, -obs))
+      }
+    }
+  }
+  df_lag <- df_lag %>% gather(poolname, lag, -date)
+
+  data <- data %>% left_join(df_lag)
+  data[[series]] <- data$lag
+  data <- data %>% select(-lag)
+  return(data)
+}
