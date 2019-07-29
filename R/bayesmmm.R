@@ -2,15 +2,18 @@
 #' @import dplyr
 #' @import ggplot2
 #' @import plotly
-
+#' @import zoo
 #' @title variable_grid
 #' @description A utility function to create a template variable data frame from a list of variables.
-#' @param variables A character vector of variable names
-#' @return a data frame containing one row for each independent variable and the following columns: \describe{
+#' @param variables A character vector of variable names.
+#' @return A data frame containing one row for each independent variable and the following columns: \describe{
 #'   \item{variable}{The variable name}
 #'   \item{expected sign}{Either "+" or "-" for half-normal prior distributions. Any other values will be ignored and treated as NA. Default NA}
-#'   \item{pooled}{An optional boolean to specify whether coefficients should vary across pools. If TRUE, a separate coefficient will be estimated for each pool using hierarchical partial-pooling, otherwise a single coefficient will be estimated. Default FALSE.}
-#'   \item{distribution}{CURRENTLY UNUSED. The prior distribution type, e.g. "normal", "cauchy" etc.}
+#'   \item{transformation}{Choose between "standard", "standard pooled", or "media".}
+#'   \item{reference.point}{Choose between "0", "min", or "max".}
+#'   \item{global}{An optional boolean to specify whether coefficients should vary across pools. If FALSE, a separate coefficient will be estimated for each pool using hierarchical partial-pooling, otherwise a single coefficient will be estimated. Default FALSE.}
+#'   \item{prior.mean}{The prior mean. NA assumes a weakly informative prior distribution (i.e. zero after standardisation).}
+#'   \item{prior.sd}{The prior standard deviation. NA assumes a weakly informative prior distribution (i.e. 1 after standardisation).}
 #' }
 #' @examples variables <- variable_grid(c("media", "seasonality"))
 #' @export
@@ -19,44 +22,44 @@ variable_grid <- function(variables){
                  "expected.sign"=NA,
                  "transformation"="Standard",
                  "reference.point"=0,
-                 "global"=FALSE)
+                 "global"=FALSE,
+                 "prior.mean"=NA,
+                 "prior.sd"=NA)
 }
 
 #' @title bayesmodel
 #' @description Creates a bayesian model using rstan.
-#' @param data A data frame containing a column of observations (labelled "obs"), an optional column of pool names (labelled "pools"), the dependent variable, and indepedendent variables.
+#' @param data A time series data frame containing a column of dates (labelled "date"), an optional column of pool names (labelled "poolname"), the dependent variable, and indepedendent variables.
 #' @param y A string identifying the dependent variable.
 #' @param variables a data frame containing one row for each independent variable and the following columns:
 #' \describe{
 #'   \item{variable}{The variable name}
-#'   \item{transform}{An optional boolean flag to determine whether media transformations should be applied}
-#'   \item{prior.mean}{The prior mean.}
-#'   \item{prior.sd}{The prior standard deviation.}
 #'   \item{expected sign}{Either "+" or "-" for half-normal prior distributions. Any other values will be ignored and treated as NA. Default NA}
-#'   \item{pooled}{An optional boolean to specify whether coefficients should vary across pools. If TRUE, a separate coefficient will be estimated for each pool using hierarchical partial-pooling, otherwise a single coefficient will be estimated. Default FALSE.}
-#'   \item{distribution}{CURRENTLY UNUSED. The prior distribution type, e.g. "normal", "cauchy" etc.}
+#'   \item{transformation}{Choose between "standard", "standard pooled", or "media".}
+#'   \item{reference.point}{Choose between "0", "min", or "max".}
+#'   \item{global}{An optional boolean to specify whether coefficients should vary across pools. If FALSE, a separate coefficient will be estimated for each pool using hierarchical partial-pooling, otherwise a single coefficient will be estimated. Default FALSE.}
+#'   \item{prior.mean}{The prior mean. NA assumes a weakly informative prior distribution (i.e. zero after standardisation).}
+#'   \item{prior.sd}{The prior standard deviation. NA assumes a weakly informative prior distribution (i.e. 1 after standardisation).}
 #' }
-#' @param observations an optional string vector of observation names, e.g. c("2014-01-01", "2014-01-08", ...). Default NULL
-#' @param standardise_priors An optional boolean to specify whether the priors should be standardised prior to modelling. If TRUE, priors will be standardised in accordance with the x matrix. If FALSE, priors will be taken as-is. Default FALSE.
-#' @param adstock_range A numeric vector containing the upper and lower bounds for adstock estimation. Default 0.1-0.7
+#' @param adstock_range An optional vector to set min/max adstock values. Default c(0.1, 0.7)
+#' @param observations An optional string vector of observation names, e.g. c("2014-01-01", "2014-01-08", ...). Default NULL
 #' @param cores The number of cores to be used for the markov chain estimation. Default 4.
-#' @param chains The number of chains to run. Default 4.
-#' @param chainlength The number of iterations for estimation. Default 2000
-#' @param excluded_obs A list of dates to exclude from the analysis. Default NULL.
+#' @param chainlength The chain length for sampling. Reduce to speed up modelling at the potential cost of accuracy. Default 2000.
 #' @return \describe{
 #'   \item{model}{the Stan model}
 #'   \item{summary}{a data frame of untransformed MAP estimates}
-#'   \item{script}{the generated Stan code}
-#'   \item{scale}{the scaling factors used for standardisation}
-#'   \item{y}{the y vector}
-#'   \item{x}{the x data frame}
-#'   \item{priors}{the priors (if any)}
-#'   \item{observations}{the observation names (if any)}
+#'   \item{scaled_summary}{a data frame of standardised MAP estimates}
+#'   \item{significance}{a table of implicit coefficients and t-statistics}
+#'   \item{plots}{a collection of plots, including decomp, fit, coefficient, and transformation posterior distributions.}
+#'   \item{decomp}{a dataframe of the model decomposition}
+#'   \item{fit}{a dataframe of the kpi vs fitted / residual values}
+#'   \item{rsq}{an implicit R-squared for the model MAP estimates}
 #' }
-#' @examples model <- bayesmodel(dataframe, "Sales", variables)
+#' @examples model <- bayesmodel(model_data, y, variables)
 #' @export
-bayesmodel <- function(data, y, variables, observations=NULL,
-                       standardise_priors=FALSE, cores=4,
+bayesmodel <- function(data, y, variables,
+                       observations=NULL,
+                       cores=4,
                        chains=4,
                        adstock_range=c(0.1, 0.7),
                        chainlength=2000,
@@ -80,6 +83,13 @@ bayesmodel <- function(data, y, variables, observations=NULL,
   }
   variables$reference.point[is.na(variables$reference.point)] <- 0
   variables$reference.point <- tolower(variables$reference.point)
+  # Missing Priors
+  if(is.null(variables$prior.mean)){
+    variables$prior.mean <- NA
+  }
+  if(is.null(variables$prior.sd)){
+    variables$prior.sd <- NA
+  }
   # Convert variable names to character
   if(is.factor(variables$variable)){
     variables$variable <- as.character(variables$variable)
@@ -156,6 +166,11 @@ bayesmodel <- function(data, y, variables, observations=NULL,
     sapply(sd) %>%
     enframe(name="variable") %>%
     rename(gsd=value)
+  global_maxes <- data %>% filter(date %in% observations) %>%
+    select(-date, -poolname) %>%
+    sapply(max) %>%
+    enframe(name="variable") %>%
+    rename(max=value)
   model_data$transformations <- merge(means, sds) %>%
     merge(maxes) %>%
     # merge(global_means) %>%
@@ -183,7 +198,7 @@ bayesmodel <- function(data, y, variables, observations=NULL,
     filter(transformation=="dependent") %>%
     mutate(value = (value-mean)/sd)
 
-  # Standard transformed variables are mean centred
+  # Standard transformed variables are mean centered
   df_sta <- model_data$transformed %>%
     filter(transformation=="standard") %>%
     mutate(value = (value-mean))
@@ -195,10 +210,10 @@ bayesmodel <- function(data, y, variables, observations=NULL,
            scale = scale / gsd) %>%
     select(-gsd)
 
-  # Standard pooled variables are pooled mean centred
+  # Standard pooled variables are pooled mean centered
   df_sta_p <- model_data$transformed %>%
     filter(transformation=="standard pooled") %>%
-    mutate(value = (value-mean)/sd,
+    mutate(value = (value-mean) / sd,
            scale = scale / sd)
 
   # Media variables are divided by the maximum value
@@ -236,15 +251,6 @@ bayesmodel <- function(data, y, variables, observations=NULL,
   # Fill NA values
   model_data$transformed[is.na(model_data$transformed)] <- 0
 
-  # Set prior means
-  if(!"prior.mean" %in% names(variables)){
-    variables$prior.mean <- 0
-  }
-  # Set prior standard deviations
-  if(!"prior.sd" %in% names(variables)){
-    variables$prior.sd <- 1
-  }
-
   results <- list()
   stan_data <- list()
 
@@ -270,18 +276,22 @@ bayesmodel <- function(data, y, variables, observations=NULL,
 
   # Add scaling factors for relative coefficient weights by pools
   stan_data$pool_scale <- model_data$transformations %>%
-    filter(transformation=="dependent") %>%
-    select(poolname, scale)
-  stan_data$pool_scale <- (stan_data$pool_scale$scale /
-                             mean(stan_data$pool_scale$scale)) %>%
-    rep(stan_data$num_vars) %>%
-    as.matrix
-  # Shape = [pools, variables]
-  dim(stan_data$pool_scale) <- c(stan_data$num_pools, stan_data$num_vars)
+    filter(transformation!="dependent") %>%
+    select(poolname, variable, scale) %>%
+    spread(poolname, scale)
+  stan_data$pool_scale <- cbind(stan_data$pool_scale[1], stan_data$pool_scale[order(poolnames)+1])
+  stan_data$pool_scale <- stan_data$pool_scale[order(variables$variable),]
+  stan_data$pool_scale$global <- rowMeans(stan_data$pool_scale[-1]) %>%
+    as.vector
+  for(i in 2:(length(stan_data$pool_scale)-1)){
+    stan_data$pool_scale[[i]] <- stan_data$pool_scale[[i]] /
+      stan_data$pool_scale$global
+  }
+  variables$prior.mean[is.na(variables$prior.mean)] <- 0
+  variables$prior.sd[which(is.na(variables$prior.sd))] <-
+    stan_data$pool_scale$global[which(is.na(variables$prior.sd))]
   # Shape = [variables, pools]
-  stan_data$pool_scale <- stan_data$pool_scale %>% t
-  # Set scale = 1 where for global variables
-  stan_data$pool_scale[variables$global, ] <- 1
+  stan_data$pool_scale <- stan_data$pool_scale[-1] %>% as_tibble %>% as.matrix
 
   # Matrix of identifiers for null variable/pool combinations
   # i.e. variable has no data for this pool
@@ -379,26 +389,25 @@ bayesmodel <- function(data, y, variables, observations=NULL,
 
   # Add transformations
   transformed_variables <- variables$variable[variables$transformation=="media"]
-  if(length(transformed_variables)>0){
-    transformations <- do.call(rbind, lapply(seq(transformed_variables), function(i){
-      variable <- transformed_variables[i]
-      ads <- model_summary[model_summary$id==paste0("ads_tra[",i,"]"),]
-      ads$Variable <- paste(variable, "ads")
-      ads$scale <- 1
+  transformations <- do.call(rbind, lapply(seq(transformed_variables), function(i){
+    variable <- transformed_variables[i]
+    ads <- model_summary[model_summary$id==paste0("ads_tra[",i,"]"),]
+    ads$Variable <- paste(variable, "ads")
+    ads$scale <- 1
 
-      denominator <- model_summary[model_summary$id==paste0("den_tra[",i,"]"),]
-      denominator$Variable <- paste(variable, "denominator")
-      # Rescale denominator
-      denominator$scale <- model_data$raw[[variable]][model_data$raw$date %in%
-                                                        observations] %>% max
-      trans <- ads %>% rbind(denominator)
-      return(trans)
-    }))
+    denominator <- model_summary[model_summary$id==paste0("den_tra[",i,"]"),]
+    denominator$Variable <- paste(variable, "denominator")
+    # Rescale denominator
+    denominator$scale <- model_data$raw[[variable]][model_data$raw$date %in%
+                                                      observations] %>% max
+    trans <- ads %>% rbind(denominator)
+    return(trans)
+  }))
 
+  if(!is.null(transformations)){
     stan_ids$transformations <- transformations %>%
       select(Variable, id) %>%
       rename("variable" = Variable)
-    results$stan_ids <- stan_ids
 
     transformations <- transformations %>% select(-id)
     transformations$MAP <- transformations$mean
@@ -407,6 +416,8 @@ bayesmodel <- function(data, y, variables, observations=NULL,
     results$transformations <- transformations
     results$transformations[2:10] <- results$transformations[2:10] * results$transformations$scale
   }
+
+  results$stan_ids <- stan_ids
 
   results$significance <- beta_summary %>%
     filter(variable != "Intercept") %>%
@@ -590,29 +601,29 @@ bayesmodel <- function(data, y, variables, observations=NULL,
   # Create actual/fitted plots ----
   fittotal <- results$fit[-1] %>%
     group_by(date) %>% summarise_all(list(sum))
-  results$plots$fit <- plot_ly(fittotal, x = ~date) %>%
-    add_trace(y = fittotal[[y]], name = y,
-              type='scatter', mode = 'lines',
-              line = list(color = "rgb(0,0,0)")) %>%
-    add_trace(y = ~fitted, name = 'Fitted Values',
-              type='scatter', mode = 'lines',
-              line = list(color = "rgb(255,0,0)")) %>%
-    add_trace(y = ~Residuals, name="Residuals",
-              type="bar", marker = list(color = "rgb(100,100,100)")) %>%
-    add_trace(y = ~X2.5., name = "95% lb", type = 'scatter', mode = 'lines',
-              line = list(color = "rgba(0,0,0,0)"),
-              showlegend = FALSE) %>%
-    add_trace(y = ~X97.5., name = "95%", type = 'scatter', mode = 'lines',
-              line = list(color = "rgba(0,0,0,0)"),
-              fill = 'tonexty', fillcolor=fit_col_97.5,
-              name = '97.5%') %>%
-    add_trace(y = ~X25., name = "50% lb", type = 'scatter', mode = 'lines',
-              line = list(color = "rgba(0,0,0,0)"),
-              showlegend = FALSE, name = '97.5%') %>%
-    add_trace(y = ~X75., name = "50%", type = 'scatter', mode = 'lines',
-              line = list(color = "rgba(0,0,0,0)"),
-              fill = 'tonexty', fillcolor=fit_col_75,
-              name = '75%')
+  results$plots$fit <- plotly::plot_ly(fittotal, x = ~date) %>%
+    plotly::add_trace(y = fittotal[[y]], name = y,
+                      type='scatter', mode = 'lines',
+                      line = list(color = "rgb(0,0,0)")) %>%
+    plotly::add_trace(y = ~fitted, name = 'Fitted Values',
+                      type='scatter', mode = 'lines',
+                      line = list(color = "rgb(255,0,0)")) %>%
+    plotly::add_trace(y = ~Residuals, name="Residuals",
+                      type="bar", marker = list(color = "rgb(100,100,100)")) %>%
+    plotly::add_trace(y = ~X2.5., name = "95% lb", type = 'scatter', mode = 'lines',
+                      line = list(color = "rgba(0,0,0,0)"),
+                      showlegend = FALSE) %>%
+    plotly::add_trace(y = ~X97.5., name = "95%", type = 'scatter', mode = 'lines',
+                      line = list(color = "rgba(0,0,0,0)"),
+                      fill = 'tonexty', fillcolor=fit_col_97.5,
+                      name = '97.5%') %>%
+    plotly::add_trace(y = ~X25., name = "50% lb", type = 'scatter', mode = 'lines',
+                      line = list(color = "rgba(0,0,0,0)"),
+                      showlegend = FALSE, name = '97.5%') %>%
+    plotly::add_trace(y = ~X75., name = "50%", type = 'scatter', mode = 'lines',
+                      line = list(color = "rgba(0,0,0,0)"),
+                      fill = 'tonexty', fillcolor=fit_col_75,
+                      name = '75%')
   cseries <- length(results$plots$fit$x$attrs)-1
 
   # Act/Fit/Residual by pool
@@ -620,33 +631,33 @@ bayesmodel <- function(data, y, variables, observations=NULL,
     fitx <- results$fit %>% filter(poolname==p) %>%
       select(-poolname)
     results$plots$fit <- results$plots$fit %>%
-      add_trace(x=fitx$date, y = fitx[[y]], name = y,
-                type='scatter', mode = 'lines',
-                line = list(color = "rgb(0,0,0)"), visible = FALSE) %>%
-      add_trace(x=fitx$date, y = fitx$fitted, name = 'Fitted Values',
-                type='scatter', mode = 'lines',
-                line = list(color = "rgb(255,0,0)"), visible = FALSE) %>%
-      add_trace(x=fitx$date, y = fitx$Residuals, name="Residuals",
-                type="bar", marker = list(color = "rgb(100,100,100)"),
-                visible = FALSE) %>%
-      add_trace(x=fitx$date, y = fitx$X2.5., name = "95% lb",
-                type = 'scatter', mode = 'lines',
-                line = list(color = "rgba(0,0,0,0)"),
-                showlegend = FALSE, visible = FALSE) %>%
-      add_trace(x=fitx$date, y = fitx$X97.5., name = "95%",
-                type = 'scatter', mode = 'lines',
-                line = list(color = "rgba(0,0,0,0)"),
-                fill = 'tonexty', fillcolor=fit_col_97.5,
-                name = '97.5%', visible = FALSE) %>%
-      add_trace(x=fitx$date, y = fitx$X25., name = "50% lb",
-                type = 'scatter', mode = 'lines',
-                line = list(color = "rgba(0,0,0,0)"),
-                showlegend = FALSE, name = '97.5%', visible = FALSE) %>%
-      add_trace(x=fitx$date, y = fitx$X75., name = "50%",
-                type = 'scatter', mode = 'lines',
-                line = list(color = "rgba(0,0,0,0)"),
-                fill = 'tonexty', fillcolor=fit_col_75,
-                name = '75%', visible = FALSE)
+      plotly::add_trace(x=fitx$date, y = fitx[[y]], name = y,
+                        type='scatter', mode = 'lines',
+                        line = list(color = "rgb(0,0,0)"), visible = FALSE) %>%
+      plotly::add_trace(x=fitx$date, y = fitx$fitted, name = 'Fitted Values',
+                        type='scatter', mode = 'lines',
+                        line = list(color = "rgb(255,0,0)"), visible = FALSE) %>%
+      plotly::add_trace(x=fitx$date, y = fitx$Residuals, name="Residuals",
+                        type="bar", marker = list(color = "rgb(100,100,100)"),
+                        visible = FALSE) %>%
+      plotly::add_trace(x=fitx$date, y = fitx$X2.5., name = "95% lb",
+                        type = 'scatter', mode = 'lines',
+                        line = list(color = "rgba(0,0,0,0)"),
+                        showlegend = FALSE, visible = FALSE) %>%
+      plotly::add_trace(x=fitx$date, y = fitx$X97.5., name = "95%",
+                        type = 'scatter', mode = 'lines',
+                        line = list(color = "rgba(0,0,0,0)"),
+                        fill = 'tonexty', fillcolor=fit_col_97.5,
+                        name = '97.5%', visible = FALSE) %>%
+      plotly::add_trace(x=fitx$date, y = fitx$X25., name = "50% lb",
+                        type = 'scatter', mode = 'lines',
+                        line = list(color = "rgba(0,0,0,0)"),
+                        showlegend = FALSE, name = '97.5%', visible = FALSE) %>%
+      plotly::add_trace(x=fitx$date, y = fitx$X75., name = "50%",
+                        type = 'scatter', mode = 'lines',
+                        line = list(color = "rgba(0,0,0,0)"),
+                        fill = 'tonexty', fillcolor=fit_col_75,
+                        name = '75%', visible = FALSE)
   }
 
   # Dropdown buttons
@@ -664,7 +675,79 @@ bayesmodel <- function(data, y, variables, observations=NULL,
     )
   })
 
-  results$plots$fit <- results$plots$fit %>% layout(
+  results$plots$fit <- results$plots$fit %>% plotly::layout(
+    legend = list(orientation = 'h'),
+    xaxis = list(title = "Date"),
+    yaxis = list(title = y),
+    updatemenus = list(
+      list(x=0, y=1.085, yref='paper', align='left', showarrow=F,
+           buttons = plotbuttons)
+    )
+  )
+
+  # Create decomp plots ----
+
+  # Default plotly colours:
+  colour_list=c('rgb(31, 119, 180)', 'rgb(255, 127, 14)',
+                'rgb(44, 160, 44)', 'rgb(214, 39, 40)',
+                'rgb(148, 103, 189)', 'rgb(140, 86, 75)',
+                'rgb(227, 119, 194)', 'rgb(127, 127, 127)',
+                'rgb(188, 189, 34)', 'rgb(23, 190, 207)')
+
+  decomptotal <- results$decomp %>%
+    group_by(variable, date) %>% summarise(value = sum(value)) %>%
+    ungroup
+  decompvars <- decomptotal %>% group_by(variable) %>%
+    summarise(value = sum(value)) %>% ungroup
+  decompvars <- decompvars$variable[order(abs(decompvars$value), decreasing = T)]
+  decomptotal <- decomptotal %>% spread(variable, value)
+  decomptotal[[y]] <- fittotal[[y]]
+  results$plots$decomp <- plotly::plot_ly(decomptotal, x = ~date) %>%
+    plotly::add_trace(y = fittotal[[y]], name = y,
+                      type='scatter', mode = 'lines',
+                      line = list(color = "rgb(0,0,0)")) %>%
+    layout(barmode = 'relative')
+  for(v in decompvars){
+    results$plots$decomp <- results$plots$decomp %>%
+      plotly::add_trace(y = decomptotal[[v]], name=v, type="bar",
+                        marker = list(color = which(decompvars==v) %% length(colour_list)))
+  }
+
+  # Decomp plots by pool
+  for(p in poolnames){
+    dcx <- results$decomp %>% filter(poolname==p) %>%
+      select(-poolname) %>%
+      spread(variable, value)
+    dcx[[y]] <- results$fit %>% filter(poolname==p) %>%
+      .[[y]]
+    results$plots$decomp <- results$plots$decomp %>%
+      plotly::add_trace(x=dcx$date, y = dcx[[y]], name = y,
+                        type='scatter', mode = 'lines',
+                        line = list(color = "rgb(0,0,0)"), visible = FALSE)
+    for(v in decompvars){
+      results$plots$decomp <- results$plots$decomp %>%
+        plotly::add_trace(y = dcx[[v]], name=v, type="bar",
+                          marker = list(color = which(decompvars==v) %% length(colour_list)),
+                          visible = FALSE)
+    }
+  }
+
+  # Dropdown buttons
+  plotbuttons <- lapply(1:(length(poolnames)+1), function(p){
+    vis <- rep(F, (length(decompvars)+1)*(length(poolnames)+1))
+    for(i in 1:(length(decompvars)+1)){
+      vis[p*(length(decompvars)+1)+1-i] <- T
+    }
+    lab <- "Total"
+    if(p>1) lab <- poolnames[p-1]
+    list(
+      method = "restyle",
+      args = list("visible", vis),
+      label = lab
+    )
+  })
+
+  results$plots$decomp <- results$plots$decomp %>% plotly::layout(
     legend = list(orientation = 'h'),
     xaxis = list(title = "Date"),
     yaxis = list(title = y),

@@ -4,56 +4,49 @@
 \alias{bayesmodel}
 \title{bayesmodel}
 \usage{
-bayesmodel(data, y, variables, observations = NULL,
-  standardise_priors = FALSE, cores = 4, chains = 4,
-  adstock_range = c(0.1, 0.7), chainlength = 2000,
+bayesmodel(data, y, variables, observations = NULL, cores = 4,
+  chains = 4, adstock_range = c(0.1, 0.7), chainlength = 2000,
   excluded_obs = NULL)
 }
 \arguments{
-\item{data}{A data frame containing a column of observations (labelled "obs"), an optional column of pool names (labelled "pools"), the dependent variable, and indepedendent variables.}
+\item{data}{A time series data frame containing a column of dates (labelled "date"), an optional column of pool names (labelled "poolname"), the dependent variable, and indepedendent variables.}
 
 \item{y}{A string identifying the dependent variable.}
 
 \item{variables}{a data frame containing one row for each independent variable and the following columns:
 \describe{
   \item{variable}{The variable name}
-  \item{transform}{An optional boolean flag to determine whether media transformations should be applied}
-  \item{prior.mean}{The prior mean.}
-  \item{prior.sd}{The prior standard deviation.}
   \item{expected sign}{Either "+" or "-" for half-normal prior distributions. Any other values will be ignored and treated as NA. Default NA}
-  \item{pooled}{An optional boolean to specify whether coefficients should vary across pools. If TRUE, a separate coefficient will be estimated for each pool using hierarchical partial-pooling, otherwise a single coefficient will be estimated. Default FALSE.}
-  \item{distribution}{CURRENTLY UNUSED. The prior distribution type, e.g. "normal", "cauchy" etc.}
+  \item{transformation}{Choose between "standard", "standard pooled", or "media".}
+  \item{reference.point}{Choose between "0", "min", or "max".}
+  \item{global}{An optional boolean to specify whether coefficients should vary across pools. If FALSE, a separate coefficient will be estimated for each pool using hierarchical partial-pooling, otherwise a single coefficient will be estimated. Default FALSE.}
+  \item{prior.mean}{The prior mean. NA assumes a weakly informative prior distribution (i.e. zero after standardisation).}
+  \item{prior.sd}{The prior standard deviation. NA assumes a weakly informative prior distribution (i.e. 1 after standardisation).}
 }}
 
-\item{observations}{an optional string vector of observation names, e.g. c("2014-01-01", "2014-01-08", ...). Default NULL}
-
-\item{standardise_priors}{An optional boolean to specify whether the priors should be standardised prior to modelling. If TRUE, priors will be standardised in accordance with the x matrix. If FALSE, priors will be taken as-is. Default FALSE.}
+\item{observations}{An optional string vector of observation names, e.g. c("2014-01-01", "2014-01-08", ...). Default NULL}
 
 \item{cores}{The number of cores to be used for the markov chain estimation. Default 4.}
 
-\item{chains}{The number of chains to run. Default 4.}
+\item{adstock_range}{An optional vector to set min/max adstock values. Default c(0.1, 0.7)}
 
-\item{adstock_range}{A numeric vector containing the upper and lower bounds for adstock estimation. Default 0.1-0.7}
-
-\item{chainlength}{The number of iterations for estimation. Default 2000}
-
-\item{excluded_obs}{A list of dates to exclude from the analysis. Default NULL.}
+\item{chainlength}{The chain length for sampling. Reduce to speed up modelling at the potential cost of accuracy. Default 2000.}
 }
 \value{
 \describe{
   \item{model}{the Stan model}
   \item{summary}{a data frame of untransformed MAP estimates}
-  \item{script}{the generated Stan code}
-  \item{scale}{the scaling factors used for standardisation}
-  \item{y}{the y vector}
-  \item{x}{the x data frame}
-  \item{priors}{the priors (if any)}
-  \item{observations}{the observation names (if any)}
+  \item{scaled_summary}{a data frame of standardised MAP estimates}
+  \item{significance}{a table of implicit coefficients and t-statistics}
+  \item{plots}{a collection of plots, including decomp, fit, coefficient, and transformation posterior distributions.}
+  \item{decomp}{a dataframe of the model decomposition}
+  \item{fit}{a dataframe of the kpi vs fitted / residual values}
+  \item{rsq}{an implicit R-squared for the model MAP estimates}
 }
 }
 \description{
 Creates a bayesian model using rstan.
 }
 \examples{
-model <- bayesmodel(dataframe, "Sales", variables)
+model <- bayesmodel(model_data, y, variables)
 }
