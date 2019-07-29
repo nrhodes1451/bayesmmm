@@ -94,3 +94,11 @@ model %>% trace_plot("Media")
 <p align="center">
   <img height="300" src="https://github.com/nrhodes1451/bayesmmm/blob/master/img/chains.png">
 </p>
+
+### View model decomposition
+```r
+model$plots$decomp
+```
+<p align="center">
+  <img height="300" src="https://github.com/nrhodes1451/bayesmmm/blob/master/img/decomp.png">
+</p>
