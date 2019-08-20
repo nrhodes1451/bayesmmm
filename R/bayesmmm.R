@@ -863,7 +863,7 @@ update_model <- function(model, y, data, observations, is_linear=FALSE){
     variables <- priors[c(5,1,2)]
     names(variables) <- c("variable", "prior.mean", "prior.sd")
 
-    new_model <- rbayes::bayesmodel(data, y, variables, observations)
+    new_model <- bayesmmm::bayesmodel(data, y, variables, observations)
 
     return(new_model)
   }
