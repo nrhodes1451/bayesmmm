@@ -3,10 +3,11 @@
 #' @import ggplot2
 #' @import plotly
 #' @import zoo
+
 #' @title variable_grid
 #' @description A utility function to create a template variable data frame from a list of variables.
 #' @param variables A character vector of variable names.
-#' @return A data frame containing one row for each independent variable and the following columns: \describe{
+#' @return A data frame containing one row for each independent variable and the following columns: ' \describe{
 #'   \item{variable}{The variable name}
 #'   \item{expected sign}{Either "+" or "-" for half-normal prior distributions. Any other values will be ignored and treated as NA. Default NA}
 #'   \item{transformation}{Choose between "standard", "standard pooled", or "media".}
@@ -29,10 +30,9 @@ variable_grid <- function(variables){
 
 #' @title bayesmodel
 #' @description Creates a bayesian model using rstan.
-#' @param data A time series data frame containing a column of dates (labelled "date"), an optional column of pool names (labelled "poolname"), the dependent variable, and indepedendent variables.
+#' @param data A data frame containing a column of observations (labelled "obs"), an optional column of pool names (labelled "pools"), the dependent variable, and indepedendent variables.
 #' @param y A string identifying the dependent variable.
-#' @param variables a data frame containing one row for each independent variable and the following columns:
-#' \describe{
+#' @param variables a data frame (optionally created by the \code{\link{variable_grid}} function) containing one row for each independent variable and the following columns: ' \describe{
 #'   \item{variable}{The variable name}
 #'   \item{expected sign}{Either "+" or "-" for half-normal prior distributions. Any other values will be ignored and treated as NA. Default NA}
 #'   \item{transformation}{Choose between "standard", "standard pooled", or "media".}
@@ -41,29 +41,26 @@ variable_grid <- function(variables){
 #'   \item{prior.mean}{The prior mean. NA assumes a weakly informative prior distribution (i.e. zero after standardisation).}
 #'   \item{prior.sd}{The prior standard deviation. NA assumes a weakly informative prior distribution (i.e. 1 after standardisation).}
 #' }
-#' @param adstock_range An optional vector to set min/max adstock values. Default c(0.1, 0.7)
-#' @param observations An optional string vector of observation names, e.g. c("2014-01-01", "2014-01-08", ...). Default NULL
+#' @param observations an optional string vector of observation names, e.g. c("2014-01-01", "2014-01-08", ...). Default NULL
 #' @param cores The number of cores to be used for the markov chain estimation. Default 4.
-#' @param chainlength The chain length for sampling. Reduce to speed up modelling at the potential cost of accuracy. Default 2000.
 #' @return \describe{
 #'   \item{model}{the Stan model}
 #'   \item{summary}{a data frame of untransformed MAP estimates}
-#'   \item{scaled_summary}{a data frame of standardised MAP estimates}
-#'   \item{significance}{a table of implicit coefficients and t-statistics}
-#'   \item{plots}{a collection of plots, including decomp, fit, coefficient, and transformation posterior distributions.}
-#'   \item{decomp}{a dataframe of the model decomposition}
-#'   \item{fit}{a dataframe of the kpi vs fitted / residual values}
-#'   \item{rsq}{an implicit R-squared for the model MAP estimates}
+#'   \item{script}{the generated Stan code}
+#'   \item{scale}{the scaling factors used for standardisation}
+#'   \item{y}{the y vector}
+#'   \item{x}{the x data frame}
+#'   \item{priors}{the priors (if any)}
+#'   \item{observations}{the observation names (if any)}
 #' }
-#' @examples model <- bayesmodel(model_data, y, variables)
+#' @examples model <- bayesmodel(dep, indeps, priors, observations=obs)
 #' @export
 bayesmodel <- function(data, y, variables,
                        observations=NULL,
                        cores=4,
                        chains=4,
                        adstock_range=c(0.1, 0.7),
-                       chainlength=2000,
-                       excluded_obs=NULL) {
+                       chainlength=2000) {
   # Error handling ----
   # Missing date field
   if(!("date" %in% names(data))){
@@ -710,7 +707,7 @@ bayesmodel <- function(data, y, variables,
   for(v in decompvars){
     results$plots$decomp <- results$plots$decomp %>%
       plotly::add_trace(y = decomptotal[[v]], name=v, type="bar",
-                        marker = list(color = which(decompvars==v) %% length(colour_list)))
+          marker = list(color = which(decompvars==v) %% length(colour_list)))
   }
 
   # Decomp plots by pool
@@ -727,8 +724,8 @@ bayesmodel <- function(data, y, variables,
     for(v in decompvars){
       results$plots$decomp <- results$plots$decomp %>%
         plotly::add_trace(y = dcx[[v]], name=v, type="bar",
-                          marker = list(color = which(decompvars==v) %% length(colour_list)),
-                          visible = FALSE)
+          marker = list(color = which(decompvars==v) %% length(colour_list)),
+          visible = FALSE)
     }
   }
 
@@ -775,9 +772,9 @@ bayesmodel <- function(data, y, variables,
 }
 
 #' @title trace_plot
-#' @description Create trace plots from a model object and variable name using ggplot
-#' @param model A bayesian model, created by the \code{\link{bayesmodel}} function
-#' @param var The variable name
+#' @description Create trace plots from a model object and variable name using ggplot.
+#' @param model A bayesian model, created by the \code{\link{bayesmodel}} function.
+#' @param var The variable name.
 #' @examples trace_plot(my_model, "Variable X")
 #' @export
 trace_plot <- function(model, var){
@@ -877,14 +874,15 @@ update_model <- function(model, y, data, observations, is_linear=FALSE){
 
 #' @title Moving Average
 #' @description Create moving averages of pooled data.
-#' @param data A data frame containing a column of observations (labelled "date"), and variables.
+#' @param data A data frame containing a column of poolnames, a column of observations (labelled "date"), and variables.
 #' @param series A string identifying the variable to be "mav"d.
 #' @param obs The moving average observation length.
+#' @param name An optional argument to specify the name of the new seres. If NULL, the original data will be overwritten with the new values. Default NULL.
 #' @param center An optional boolean to specify centered moving average. Default FALSE.
 #' @return A transformed data frame.
 #' @examples df <- df_raw %>% mav("seasonality", 13, center = T)
 #' @export
-mav <- function(data, series, obs, center = F){
+mav <- function(data, series, obs, name = NULL, center = F){
 
   if(!"poolname" %in% names(data)){
     message("Column 'poolname' not found in data. Assuming non-pooled data.")
@@ -911,21 +909,24 @@ mav <- function(data, series, obs, center = F){
   df_mav <- df_mav %>% gather(poolname, mav, -date)
 
   data <- data %>% left_join(df_mav)
-  data[[series]] <- data$mav
+  if(is.null(name)) data[[series]] <- data$mav
+  else data[[name]] <- data$mav
+
   data <- data %>% select(-mav)
   return(data)
 }
 
 #' @title Lag Variables
 #' @description Create lags and leads of pooled data.
-#' @param data A data frame containing a column of observations (labelled "date"), and variables.
+#' @param data A data frame containing a column of poolnames, a column of observations (labelled "date"), and variables.
 #' @param series A string identifying the variable to be lagged.
 #' @param obs The number of weeks to lag by. Negative numbers will result in a lead.
+#' @param name An optional argument to specify the name of the new seres. If NULL, the original data will be overwritten with the new values. Default NULL
 #' @param rep_nearest An optional boolean to fill NA values with nearest neighbour. If FALSE, NA values will be filled with zero. Default TRUE.
 #' @return A transformed data frame.
 #' @examples df <- df_raw %>% mav("Christmas", 2, rep_nearest = F)
 #' @export
-lag <- function(data, series, obs, rep_nearest = T){
+lag <- function(data, series, obs, name = NULL, rep_nearest = T){
   if(!"poolname" %in% names(data)){
     message("Column 'poolname' not found in data. Assuming non-pooled data.")
     data$poolname <- "total"
@@ -959,7 +960,54 @@ lag <- function(data, series, obs, rep_nearest = T){
   df_lag <- df_lag %>% gather(poolname, lag, -date)
 
   data <- data %>% left_join(df_lag)
-  data[[series]] <- data$lag
+
+  if(is.null(name)) data[[series]] <- data$lag
+  else data[[name]] <- data$lag
+
   data <- data %>% select(-lag)
   return(data)
+}
+
+#' @title Line chart
+#' @description Create a line chart from pooled data. One series per pool.
+#' @param data A data frame containing a column of poolnames, a column of observations (labelled "date"), and variables.
+#' @param series The name of the series to be charted
+#' @param series2 An optional second series to be charted on a secondary axis. Default NULL.
+#' @return A plotly chart object
+#' @examples lplot(model_data, "revenue")
+#' @export
+lplot <- function(data, series, series2 = NULL){
+  chart_data <- data[c("poolname", "date", series)] %>%
+    spread(poolname, series)
+  names(chart_data)[-1] <- paste(series, names(chart_data)[-1])
+
+  p <- plotly::plot_ly(chart_data, x = ~date)
+  for(s in names(chart_data)[-1]){
+    p <- p %>% plotly::add_trace(y = chart_data[[s]], name = s,
+                                 type='scatter', mode = 'lines')
+  }
+
+  p <- p %>% plotly::layout(
+    legend = list(orientation = 'h'),
+    yaxis = list(title = series))
+
+  if(!is.null(series2)){
+    chart_data <- data[c("poolname", "date", series2)] %>%
+      spread(poolname, series2)
+    names(chart_data)[-1] <- paste(series2, names(chart_data)[-1])
+
+    for(s in names(chart_data)[-1]){
+      p <- p %>% plotly::add_trace(y = chart_data[[s]], name = s,
+                                   type='scatter', mode = 'lines',
+                                   yaxis = "y2")
+      p <- p %>% plotly::layout(yaxis2 = list(
+        tickfont = list(color = "red"),
+        overlaying = "y",
+        side = "right",
+        title = series2,
+        showgrid = F
+      ))
+    }
+  }
+  return(p)
 }

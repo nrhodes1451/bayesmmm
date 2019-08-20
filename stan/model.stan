@@ -41,7 +41,7 @@ data {
   vector[model_obs*num_pools] y; // dependent variable vector
 
   // scaling factors for relative coefficient weights for variables by pool
-  matrix[num_vars, num_pools+1] pool_scale;
+  matrix[num_vars, num_pools] pool_scale;
 
   row_vector[total_obs*num_pools] X[num_vars]; // 2d vector of independent variables
 
@@ -130,11 +130,9 @@ model{
 
   // Coefficient hierarchy
   for (v in 1:num_vars) {
-    global_beta[v] ~ normal(pmeans[v] / pool_scale[v, num_pools+1],
-      psds[v] / pool_scale[v, num_pools+1]);
+    global_beta[v] ~ normal(pmeans[v], psds[v]);
     for (p in 1:num_pools) {
-      pool_beta[v, p] ~ normal(global_beta[v] / pool_scale[v, p],
-        psds[v] / pool_scale[v, num_pools+1]);
+      pool_beta[v, p] ~ normal(global_beta[v] / pool_scale[v, p], psds[v] / 4);
     }
   }
 

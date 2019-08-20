@@ -20,7 +20,7 @@ posterior_plot <- function(data){
     theme_classic()
 
   return(list(
-    chart=ggplotly(cht),
+    chart=plotly::ggplotly(cht),
     MAP=maps))
 }
 
