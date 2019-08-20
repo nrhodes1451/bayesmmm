@@ -2,6 +2,7 @@
 
 export(bayesmodel)
 export(lag)
+export(lplot)
 export(mav)
 export(trace_plot)
 export(variable_grid)
