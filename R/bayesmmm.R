@@ -30,7 +30,7 @@ variable_grid <- function(variables){
 
 #' @title bayesmodel
 #' @description Creates a bayesian model using rstan.
-#' @param data A data frame containing a column of observations (labelled "obs"), an optional column of pool names (labelled "pools"), the dependent variable, and indepedendent variables.
+#' @param data A data frame containing a column of observations (labelled "date"), an optional column of pool names (labelled "poolname"), the dependent variable, and indepedendent variables.
 #' @param y A string identifying the dependent variable.
 #' @param variables a data frame (optionally created by the \code{\link{variable_grid}} function) containing one row for each independent variable and the following columns: ' \describe{
 #'   \item{variable}{The variable name}
@@ -834,7 +834,7 @@ trace_plot <- function(model, var){
 #' @description Creates a new model from a given dataset, where the priors are taken from the posterior distribution of an existing model.
 #' @param model A bayesian model created by the \code{\link{bayesmodel}} function
 #' @param y A string identifying the dependent variable.
-#' @param data A data frame containing a column of observations (labelled "obs"), the dependent variable, and indepedendent variables
+#' @param data A data frame containing a column of observations (labelled "date"), the dependent variable, and indepedendent variables
 #' @param observations An optional string vector of observation names, e.g. c("2014-01-01", "2014-01-08", ...)
 #' @param is_linear An optional boolean to specify whether whether a linear model is provided. If TRUE, the model argument is taken to be the output from the lm function and the priors are set to be normally distributed, with mean=coefficient and s.d.=standard error. Default FALSE
 #' @return A bayesian model

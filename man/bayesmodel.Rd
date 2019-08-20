@@ -8,7 +8,7 @@ bayesmodel(data, y, variables, observations = NULL, cores = 4,
   chains = 4, adstock_range = c(0.1, 0.7), chainlength = 2000)
 }
 \arguments{
-\item{data}{A data frame containing a column of observations (labelled "obs"), an optional column of pool names (labelled "pools"), the dependent variable, and indepedendent variables.}
+\item{data}{A data frame containing a column of observations (labelled "date"), an optional column of pool names (labelled "poolname"), the dependent variable, and indepedendent variables.}
 
 \item{y}{A string identifying the dependent variable.}
 
