@@ -456,11 +456,12 @@ bayesmodel <- function(data, y, variables,
       select(poolname, scale)
     scale <- scale[order(poolnames),]$scale
     if(length(poolnames)>1){
-      coeff <- enframe(coeff %*% diag(scale), name = NULL)
+      coeff <- coeff %*% diag(scale)
     }
     else{
-      coeff <- enframe(coeff * scale, name = NULL)
+      coeff <- coeff * scale
     }
+    coeff <- as_tibble(coeff)
     names(coeff) <- poolnames
     post_i <- posterior_plot(coeff)
 
