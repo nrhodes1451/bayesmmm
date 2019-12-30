@@ -4,6 +4,10 @@ Pooled Marketing Mix Modelling using RStan.
 
 This project was born out of a desire to reimagine traditional frequentist MMM in a hierarchical Bayesian framework. Much of the credit here goes to Richard McElreath and the fantastic Statistical Rethinking for introducing me to Bayesian statistics and associated philosophy.
 
+### Update
+
+Please note that this package is currently incomplete. I hope to complete/refine as and when I have time, but this is currently taking the back seat between work/study/moving house.
+
 ## Installation
 
 ```r
